@@ -1,53 +1,237 @@
 # Business Profitability and Risk Prediction System
 
-Complete full-stack web application with:
-- Flask backend API for risk prediction
-- Logistic Regression ML model for risk classification
-- React frontend with Prediction, Dashboard, and Insights pages
-- Deployment-ready setup for AWS EC2
+Complete web application for risk prediction and business analytics with:
+- ✅ React frontend with Prediction, Dashboard, and Insights pages
+- ✅ Local in-browser risk prediction (no backend server required)
+- ✅ Real-time business model filtering and trend analysis
+- ✅ Responsive UI with Indian currency formatting
+- ✅ Offline-capable (prediction history stored in browser)
+
+## ⚡ Quick Start
+
+### Requirements
+- Node.js 16+
+- npm or yarn
+
+### Setup & Run
+
+```bash
+# Install dependencies
+cd frontend
+npm install
+
+# Start development server
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser.
+
+**That's it! No backend server needed.**
 
 ## Folder Structure
 
 ```text
 project/
-├── backend/
-│   ├── app.py
-│   ├── train_model.py
-│   ├── model.pkl
-│   └── requirements.txt
-├── frontend/
+├── frontend/                    # React + Vite web app
 │   ├── package.json
-│   ├── index.html
 │   ├── vite.config.js
+│   ├── index.html
 │   └── src/
 │       ├── App.jsx
 │       ├── main.jsx
 │       ├── styles.css
+│       ├── services/
+│       │   └── predictionService.js  # Risk calculation logic
+│       ├── utils/
+│       │   └── predictionStore.js    # localStorage history
+│       ├── components/
+│       │   └── Navbar.jsx
 │       └── pages/
 │           ├── HomePage.jsx
-│           ├── PredictionPage.jsx
-│           ├── DashboardPage.jsx
-│           └── InsightsPage.jsx
-└── data/
-    └── dataset.csv
+│           ├── PredictionPage.jsx    # Make predictions
+│           ├── DashboardPage.jsx     # View analytics
+│           └── InsightsPage.jsx      # Filter & analyze
+├── backend/                     # (Deprecated - kept for reference)
+│   ├── app.py                   # Old Flask API (not used)
+│   ├── train_model.py           # Old model training
+│   └── README_DEPRECATED.md
+├── data/
+│   └── dataset.csv              # Historical data for dashboard
+└── public/
+    └── data/
+        └── data_final.csv       # Dashboard chart data
 ```
 
-## Backend Setup
+## Features
+
+### 🎯 Prediction Page
+- Enter revenue, cost, quantity, and business model
+- Get instant risk prediction and scoring
+- View detailed risk breakdown analysis
+- See confidence metrics
+- Track prediction history and trends
+
+### 📊 Dashboard
+- Revenue and profit trends
+- Risk distribution charts
+- Business model comparison
+- Payment mode analysis
+- Geographic data visualization
+- Cost vs. revenue scatter plots
+
+### 💡 Insights Dashboard
+- Dynamic KPI cards from prediction history
+- Filter by business model
+- Key insights and recommendations
+- Risk alerts
+- Revenue forecasting
+- Explanation of trends
+
+### 🏠 Home Page
+- Business intelligence overview
+- Key metrics and KPIs
+- Best performing business model
+- Feature highlights
+- Quick navigation to all pages
+
+## Technology Stack
+
+- **Frontend**: React 18 + Vite
+- **Charts**: Recharts for data visualization
+- **Data**: CSV parsing with PapaParse
+- **Styling**: Modern CSS with responsive design
+- **Storage**: Browser localStorage for prediction history
+- **No Backend**: All calculations run in-browser (JavaScript)
+
+## How Predictions Work
+
+The prediction logic is implemented in `frontend/src/services/predictionService.js`:
+
+1. **Input**: Revenue, Cost, Quantity, Business Model
+2. **Calculations**:
+   - Profit margin: `(Revenue - Cost) / Revenue × 100`
+   - Risk score: Weighted combination of cost ratio, margin, quantity, business model
+   - Confidence: 70-95% based on cost ratio
+3. **Output**: Risk label, score, confidence, profit margin, analysis breakdown
+
+**No network calls needed** — all calculations happen instantly in your browser.
+
+## Build for Production
 
 ```bash
-cd project/backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python train_model.py
-python app.py
+cd frontend
+npm run build
 ```
 
-Backend runs at `http://127.0.0.1:5000`.
+Output: `frontend/dist/` — Deploy this folder to any static hosting service.
 
-## Frontend Setup
+### Deployment Options
 
-```bash
+- **Vercel**: `vercel` command
+- **Netlify**: Drag & drop `dist/` folder
+- **GitHub Pages**: Push to gh-pages branch
+- **AWS S3 + CloudFront**: Upload `dist/` to S3
+- **Docker**: Create Dockerfile from example below
+
+### Docker Deployment (Optional)
+
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY frontend/ .
+RUN npm install && npm run build
+EXPOSE 3000
+CMD ["npm", "run", "preview"]
+```
+
+## Browser Support
+
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
+
+## Using Prediction History
+
+Predictions are automatically saved to browser storage:
+- Max 100 predictions stored
+- Survives page refreshes and browser restarts
+- Can be filtered by business model in Insights
+- Used for trend analysis and forecasting
+
+To clear history: Open DevTools → Storage → localStorage → Remove `bda_predictions_v1`
+
+## Data Files
+
+### Dashboard Data
+- Location: `frontend/public/data/data_final.csv`
+- Used by: Dashboard and Insights pages
+- Update this to refresh dashboard charts
+
+### Training Data (Optional)
+- Location: `data/dataset.csv`
+- Only needed if retraining the model (not required for app)
+
+## Troubleshooting
+
+### Predictions not working
+```
+✓ Check browser console (F12) for errors
+✓ Ensure JavaScript is enabled
+✓ Clear browser cache and localStorage
+✓ Reload page
+```
+
+### Dashboard shows no data
+```
+✓ Verify file exists: frontend/public/data/data_final.csv
+✓ Check browser Network tab for 404
+✓ File must be in CSV format with headers
+```
+
+### Insight filters not updating
+```
+✓ Run at least one prediction first
+✓ Ensure localStorage is enabled
+✓ Try different business model filter
+```
+
+## Migration from Flask Backend
+
+This project previously used a Flask API backend. The backend has been **removed** and all logic moved to the frontend for:
+- ✅ Better performance (no network latency)
+- ✅ Offline capability
+- ✅ Simpler deployment
+- ✅ Reduced server costs
+
+See `MIGRATION_TO_FRONTEND_ONLY.md` for technical details.
+
+## Future Enhancements
+
+- [ ] Export predictions to PDF/Excel
+- [ ] Model accuracy tracking
+- [ ] Advanced filtering and search
+- [ ] Data import wizard
+- [ ] Multi-user workspace
+- [ ] API predictions (optional re-add Flask)
+- [ ] PWA support for mobile apps
+- [ ] Dark mode theme
+
+## Support & Contribution
+
+For issues, feature requests, or improvements:
+1. Check existing documentation
+2. Review code comments in `predictionService.js`
+3. Test in browser DevTools
+
+## License
+
+Project for academic/business use.
+
+---
+
+**Need Backend API?** See `backend/README_DEPRECATED.md` for optional Flask setup.
+
 cd project/frontend
 npm install
 npm run dev

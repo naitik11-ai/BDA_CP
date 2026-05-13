@@ -9,8 +9,8 @@ import {
   YAxis,
 } from "recharts";
 import { addPrediction, loadPredictions, toTrendHistory } from "../utils/predictionStore";
+import { predict as localPredict } from "../services/predictionService";
 
-const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 const modelFilterOptions = ["Retail", "Marketplace", "Dropshipping", "B2C", "B2B"];
 const defaultForm = {
   revenue: "",
@@ -93,27 +93,8 @@ function PredictionPage() {
         throw new Error("Revenue and quantity must be positive; cost cannot be negative.");
       }
 
-      const response = await fetch(`${API_BASE}/predict`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      let data = null;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        const text = await response.clone().text();
-        throw new Error(
-          response.ok
-            ? `Invalid response from prediction API: ${text.substring(0, 200)}`
-            : `Prediction request failed: ${response.status} ${response.statusText}`
-        );
-      }
-
-      if (!response.ok) {
-        throw new Error(data?.error || "Prediction failed.");
-      }
+      // Call local prediction service instead of Flask API
+      const data = localPredict(payload.revenue, payload.cost, payload.quantity, payload.business_model);
 
       setResult(data);
       const saved = addPrediction({
