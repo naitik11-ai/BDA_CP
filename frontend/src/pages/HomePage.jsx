@@ -1,7 +1,29 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import Papa from "papaparse";
 import { computePredictionStats, loadPredictions } from "../utils/predictionStore";
-import { getBestBusinessModel, subscribeToBestBusinessModel } from "../services/homepageDataService";
+
+const DATA_FILE = "/data/data_final.csv";
+
+function findBestBusinessModel(rows) {
+  if (!rows || rows.length === 0) return "Unknown";
+  const modelCol = Object.keys(rows[0]).find((key) =>
+    ["Business_Model", "Business Model", "BusinessModel", "business_model"].includes(key)
+  );
+  const revenueCol = Object.keys(rows[0]).find((key) =>
+    ["Revenue_INR", "Revenue", "RevenueINR"].includes(key)
+  );
+  if (!modelCol || !revenueCol) return "Unknown";
+
+  const totals = rows.reduce((acc, row) => {
+    const model = String(row[modelCol] || "Unknown").trim() || "Unknown";
+    const revenue = Number(row[revenueCol]) || 0;
+    acc[model] = (acc[model] || 0) + revenue;
+    return acc;
+  }, {});
+
+  return Object.entries(totals).sort((a, b) => b[1] - a[1])[0]?.[0] || "Unknown";
+}
 
 const features = [
   "Real-time Risk Prediction",
@@ -34,21 +56,20 @@ function HomePage() {
     const refresh = () => setStats(computePredictionStats(loadPredictions()));
     refresh();
 
-    const loadBestBusinessModel = async () => {
+    const loadDataset = async () => {
       try {
-        const bestModel = await getBestBusinessModel();
-        setBestBusinessModel(bestModel);
+        const response = await fetch(DATA_FILE);
+        if (!response.ok) throw new Error("Dataset missing");
+        const text = await response.text();
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        if (parsed.errors?.length) throw parsed.errors[0];
+        setBestBusinessModel(findBestBusinessModel(parsed.data));
       } catch (error) {
         setBestBusinessModel("Unknown");
       }
     };
 
-    loadBestBusinessModel();
-
-    // Subscribe to data updates
-    const unsubscribe = subscribeToBestBusinessModel((bestModel) => {
-      setBestBusinessModel(bestModel);
-    });
+    loadDataset();
 
     const onStorage = (event) => {
       if (event.key === "bda_predictions_v1") {
@@ -56,10 +77,7 @@ function HomePage() {
       }
     };
     window.addEventListener("storage", onStorage);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      unsubscribe();
-    };
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const kpiCards = useMemo(
