@@ -50,15 +50,17 @@ function HomePage() {
       setBestBusinessModel(bestModel);
     });
 
+    useEffect(()=>{
     const onStorage = (event) => {
       if (event.key === "bda_predictions_v1") {
         refresh();
       }
     };
     window.addEventListener("storage", onStorage);
+
+    //cleanup function
     return () => {
       window.removeEventListener("storage", onStorage);
-      unsubscribe();
     };
   }, []);
 
