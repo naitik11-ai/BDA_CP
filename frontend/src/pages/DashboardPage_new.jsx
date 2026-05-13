@@ -3,7 +3,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   Line,
   LineChart,
@@ -74,6 +73,9 @@ function DashboardPage() {
     <section className="dashboard-page">
       <article className="card">
         <h2>Business Analytics Dashboard</h2>
+        <p className="subtle">
+          Dynamic analytics generated directly from your dataset without Power BI.
+        </p>
       </article>
 
       {loading && <article className="card">Loading dashboard charts...</article>}
@@ -87,13 +89,13 @@ function DashboardPage() {
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={dashboardData.trend} margin={chartMargin}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="Month" {...sharedAxisProps} />
+                  <XAxis dataKey="month" {...sharedAxisProps} />
                   <YAxis {...sharedAxisProps} tickFormatter={formatIndianAmount} width={72} />
                   <Tooltip formatter={(value) => formatIndianAmount(value)} />
                   <Legend />
                   <Line
                     type="monotone"
-                    dataKey="Revenue_INR"
+                    dataKey="revenue"
                     stroke="#1d4ed8"
                     strokeWidth={3}
                     name="Revenue"
@@ -102,7 +104,7 @@ function DashboardPage() {
                   />
                   <Line
                     type="monotone"
-                    dataKey="Profit_INR"
+                    dataKey="profit"
                     stroke="#16a34a"
                     strokeWidth={2}
                     name="Profit"
