@@ -120,12 +120,41 @@ function PredictionPage() {
 
   const explanationText = useMemo(() => {
     if (!result?.risk_analysis) return "";
-    const costRatio = result.risk_analysis.cost_ratio ?? 0;
-    const qImpact = result.risk_analysis.quantity_component ?? 0;
-    const bmImpact = result.risk_analysis.business_model_component ?? 0;
-    const label = riskClass === "high" ? "high" : riskClass === "medium" ? "moderate" : "low";
-    return `This prediction is driven by a cost ratio of ${costRatio}, quantity impact (+${qImpact}), and business model impact (+${bmImpact}). Overall risk is ${label}.`;
+
+    const {
+      cost_ratio: costRatio = 0,
+      cost_ratio_base: costBase = 0,
+      cost_ratio_penalty: costPenalty = 0,
+      cost_ratio_component: costComponent = 0,
+      quantity_component: qComponent = 0,
+      profit_margin_component: pComponent = 0,
+      business_model_component: bmComponent = 0,
+    } = result.risk_analysis;
+
+    const contributions = [
+      { name: "Cost Ratio Base", value: costBase, weight: "50×" },
+      { name: "Cost Ratio Penalty", value: costPenalty, weight: "" },
+      { name: "Profit Margin", value: pComponent, weight: "" },
+      { name: "Quantity Risk", value: qComponent, weight: "" },
+      { name: "Business Model", value: bmComponent, weight: "" },
+    ];
+
+    const positiveContribs = contributions
+      .filter((c) => c.value > 0)
+      .map((c) => `${c.name} ${c.weight ? `(${c.weight})` : ""}: +${c.value}`)
+      .join(", ");
+
+    const negativeContribs = contributions
+      .filter((c) => c.value < 0)
+      .map((c) => `${c.name}: ${c.value}`)
+      .join(", ");
+
+    const allContribs = positiveContribs + (negativeContribs ? ", " + negativeContribs : "");
+    const label = riskClass === "high" ? "High" : riskClass === "medium" ? "Medium" : "Low";
+
+    return `Risk Score ${result.risk_score}/100 (${label} Risk) is driven by: ${allContribs || "baseline"}. Cost ratio of ${costRatio} with total cost impact of ${costComponent}.`;
   }, [result, riskClass]);
+
 
   return (
     <section className="prediction-layout-modern prediction-saas-bg">
@@ -272,12 +301,35 @@ function PredictionPage() {
             </div>
 
             <div className="insight-box">
-              <h3>Risk Analysis Explanation</h3>
+              <h3>Risk Analysis Breakdown</h3>
               <ul>
-                <li>Cost ratio: {result.risk_analysis?.cost_ratio ?? 0}</li>
-                <li>Cost impact: +{result.risk_analysis?.cost_ratio_component ?? 0}</li>
-                <li>Quantity impact: +{result.risk_analysis?.quantity_component ?? 0}</li>
-                <li>Business model impact: +{result.risk_analysis?.business_model_component ?? 0}</li>
+                <li><strong>Cost Ratio:</strong> {result.risk_analysis?.cost_ratio ?? 0}</li>
+                <li className="indent">
+                  ├─ Cost Ratio Base: {result.risk_analysis?.cost_ratio_base ?? 0} (ratio × 50)
+                </li>
+                <li className="indent">
+                  ├─ Cost Penalty: {result.risk_analysis?.cost_ratio_penalty ?? 0}
+                </li>
+                <li className="indent">
+                  └─ <strong>Total Cost Impact: {result.risk_analysis?.cost_ratio_component ?? 0}</strong>
+                </li>
+                <li><strong>Profit Margin Impact:</strong> {result.risk_analysis?.profit_margin_component ?? 0}</li>
+                <li><strong>Quantity Impact:</strong> +{result.risk_analysis?.quantity_component ?? 0}</li>
+                <li><strong>Business Model Impact:</strong> +{result.risk_analysis?.business_model_component ?? 0}</li>
+                <li style={{ marginTop: "8px", borderTop: "1px solid #e5e7eb", paddingTop: "8px" }}>
+                  <strong>Calculated Total:</strong>{" "}
+                  {(() => {
+                    const costComp = result.risk_analysis?.cost_ratio_component ?? 0;
+                    const profitComp = result.risk_analysis?.profit_margin_component ?? 0;
+                    const qComp = result.risk_analysis?.quantity_component ?? 0;
+                    const bmComp = result.risk_analysis?.business_model_component ?? 0;
+                    const total = Math.round(costComp + profitComp + qComp + bmComp);
+                    return `${total} (before rounding/clamping)`;
+                  })()}
+                </li>
+                <li>
+                  <strong>Final Risk Score:</strong> {result.risk_score}/100
+                </li>
               </ul>
               <p className="explanation-text">{explanationText}</p>
             </div>

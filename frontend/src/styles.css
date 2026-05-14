@@ -241,6 +241,18 @@ button:disabled {
   gap: 0.4rem;
 }
 
+.insight-box ul li.indent {
+  padding-left: 1.2rem;
+  font-size: 0.95rem;
+  color: #475569;
+  font-family: "Courier New", monospace;
+}
+
+.insight-box ul li.indent strong {
+  color: #1e293b;
+}
+
+
 .prediction-full {
   grid-column: 1 / -1;
 }

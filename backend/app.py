@@ -216,13 +216,18 @@ def predict():
     quantity_risk = compute_quantity_risk(quantity)
     business_model_risk = BUSINESS_MODEL_RISK.get(normalized_model, 8)
     profit_margin_component = compute_margin_risk_component(profit_margin)
+    cost_ratio_penalty = compute_cost_ratio_penalty(cost_ratio)
+    cost_ratio_base = cost_ratio * 50
+    cost_ratio_total = round(cost_ratio_base + cost_ratio_penalty, 2)
     risk_analysis = {
         "cost_ratio": cost_ratio,
-        "cost_ratio_component": round(cost_ratio * 60 + compute_cost_ratio_penalty(cost_ratio), 2),
+        "cost_ratio_base": round(cost_ratio_base, 2),
+        "cost_ratio_penalty": cost_ratio_penalty,
+        "cost_ratio_component": cost_ratio_total,
         "quantity_component": quantity_risk,
+        "profit_margin_component": profit_margin_component,
         "business_model_component": business_model_risk,
         "profit_margin": profit_margin,
-        "profit_margin_component": profit_margin_component,
         "manual_risk_label": prediction_label if cost > revenue or profit_margin < 5 else None,
     }
 

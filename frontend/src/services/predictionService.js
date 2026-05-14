@@ -164,6 +164,8 @@ export function predict(revenue, cost, quantity, businessModel) {
   const businessModelRisk = BUSINESS_MODEL_RISK[normalizedModel] || 8;
   const profitMarginComponent = computeMarginRiskComponent(profitMargin);
   const costRatioPenalty = computeCostRatioPenalty(costRatio);
+  const costRatioBaseComponent = costRatio * 50;
+  const costRatioTotalComponent = Number((costRatioBaseComponent + costRatioPenalty).toFixed(2));
 
   // Return prediction response matching Flask API format
   return {
@@ -176,11 +178,13 @@ export function predict(revenue, cost, quantity, businessModel) {
     model_accuracy: 85.5, // Default accuracy (can be updated if needed)
     risk_analysis: {
       cost_ratio: costRatio,
-      cost_ratio_component: Number((costRatio * 60 + costRatioPenalty).toFixed(2)),
+      cost_ratio_base: Number(costRatioBaseComponent.toFixed(2)),
+      cost_ratio_penalty: Number(costRatioPenalty.toFixed(2)),
+      cost_ratio_component: costRatioTotalComponent,
       quantity_component: quantityRisk,
+      profit_margin_component: profitMarginComponent,
       business_model_component: businessModelRisk,
       profit_margin: profitMargin,
-      profit_margin_component: profitMarginComponent,
       manual_risk_label: costRatio > 1 || profitMargin < 5 ? riskLabel : null,
     },
   };
