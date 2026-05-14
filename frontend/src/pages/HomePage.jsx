@@ -1,29 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import Papa from "papaparse";
 import { computePredictionStats, loadPredictions } from "../utils/predictionStore";
-
-const DATA_FILE = "/data/data_final.csv";
-
-function findBestBusinessModel(rows) {
-  if (!rows || rows.length === 0) return "Unknown";
-  const modelCol = Object.keys(rows[0]).find((key) =>
-    ["Business_Model", "Business Model", "BusinessModel", "business_model"].includes(key)
-  );
-  const revenueCol = Object.keys(rows[0]).find((key) =>
-    ["Revenue_INR", "Revenue", "RevenueINR"].includes(key)
-  );
-  if (!modelCol || !revenueCol) return "Unknown";
-
-  const totals = rows.reduce((acc, row) => {
-    const model = String(row[modelCol] || "Unknown").trim() || "Unknown";
-    const revenue = Number(row[revenueCol]) || 0;
-    acc[model] = (acc[model] || 0) + revenue;
-    return acc;
-  }, {});
-
-  return Object.entries(totals).sort((a, b) => b[1] - a[1])[0]?.[0] || "Unknown";
-}
+import { ensureDashboardCache } from "../utils/dashboardCache";
 
 const features = [
   "Real-time Risk Prediction",
@@ -47,37 +25,33 @@ const productPreviews = [
 ];
 
 function HomePage() {
-  const [stats, setStats] = useState(() =>
-    computePredictionStats(loadPredictions())
-  );
+  const [stats, setStats] = useState(() => computePredictionStats(loadPredictions()));
   const [bestBusinessModel, setBestBusinessModel] = useState("Loading...");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const refresh = () => setStats(computePredictionStats(loadPredictions()));
-    refresh();
+    const refreshStats = () => setStats(computePredictionStats(loadPredictions()));
+    refreshStats();
 
-    const loadDataset = async () => {
-      try {
-        const response = await fetch(DATA_FILE);
-        if (!response.ok) throw new Error("Dataset missing");
-        const text = await response.text();
-        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-        if (parsed.errors?.length) throw parsed.errors[0];
-        setBestBusinessModel(findBestBusinessModel(parsed.data));
-      } catch (error) {
+    ensureDashboardCache()
+      .then((cache) => {
+        if (cache?.bestBusinessModel) {
+          setBestBusinessModel(cache.bestBusinessModel);
+        }
+      })
+      .catch(() => {
         setBestBusinessModel("Unknown");
-      }
-    };
+      })
+      .finally(() => setLoading(false));
 
-    loadDataset();
+    const refreshOnStorage = () => refreshStats();
+    window.addEventListener("storage", refreshOnStorage);
+    window.addEventListener("predictionHistoryChanged", refreshOnStorage);
 
-    const onStorage = (event) => {
-      if (event.key === "bda_predictions_v1") {
-        refresh();
-      }
+    return () => {
+      window.removeEventListener("storage", refreshOnStorage);
+      window.removeEventListener("predictionHistoryChanged", refreshOnStorage);
     };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const kpiCards = useMemo(
@@ -95,7 +69,7 @@ function HomePage() {
       {
         icon: "🌟",
         label: "Best Performing Business Model",
-        value: String(bestBusinessModel),
+        value: loading ? "Loading…" : String(bestBusinessModel),
       },
       {
         icon: "🤖",
@@ -104,7 +78,7 @@ function HomePage() {
           stats.avgModelAccuracy === null ? "—" : `${stats.avgModelAccuracy}%`,
       },
     ],
-    [stats, bestBusinessModel]
+    [stats, bestBusinessModel, loading]
   );
 
   return (
@@ -133,7 +107,9 @@ function HomePage() {
               {item.icon}
             </span>
             <p className="kpi-label">{item.label}</p>
-            <p className="kpi-value">{item.value}</p>
+            <p className={`kpi-value ${item.value === "Loading…" ? "loading-text" : ""}`}>
+              {item.value}
+            </p>
           </article>
         ))}
       </section>
@@ -166,7 +142,7 @@ function HomePage() {
               <figcaption>{item.caption}</figcaption>
             </figure>
           ))}
-          </div>
+        </div>
       </section>
 
       <section className="card cta-card">

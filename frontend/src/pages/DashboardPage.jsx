@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import Papa from "papaparse";
 import {
   Bar,
   BarChart,
@@ -16,34 +15,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ensureDashboardCache } from "../utils/dashboardCache";
 
 const RISK_COLORS = ["#16a34a", "#f59e0b", "#dc2626"];
-const CSV_PATH = "/data/data_final.csv";
-
-function normalizeName(text) {
-  return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function pickColumn(columns, candidates) {
-  const normalized = columns.map((c) => ({ col: c, n: normalizeName(c) }));
-  for (const cand of candidates) {
-    const nc = normalizeName(cand);
-    const match = normalized.find((item) => item.n === nc) || normalized.find((item) => item.n.includes(nc));
-    if (match) return match.col;
-  }
-  return null;
-}
-
-function toNumber(val) {
-  const num = Number(val);
-  return Number.isFinite(num) ? num : null;
-}
-
-function monthKey(dateObj) {
-  const year = dateObj.getFullYear();
-  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
 
 function formatIndianAmount(value) {
   const num = Number(value);
@@ -65,193 +39,35 @@ function formatIndianAmount(value) {
   return `${sign}${Math.round((num / 10000000) * 10) / 10}Cr`;
 }
 
-function buildDashboardFromRows(rows) {
-  if (!rows || rows.length === 0) {
-    return null;
-  }
-  const columns = Object.keys(rows[0] || {});
-
-  const dateCol = pickColumn(columns, ["Order_Date", "Date"]);
-  const revenueCol = pickColumn(columns, ["Revenue_INR", "Revenue"]);
-  const costCol = pickColumn(columns, ["Cost_INR", "Cost"]);
-  const profitCol = pickColumn(columns, ["Profit_INR", "Profit"]);
-  const categoryCol = pickColumn(columns, ["Category"]);
-  const platformCol = pickColumn(columns, ["Platform"]);
-  const businessModelCol = pickColumn(columns, ["Business_Model"]);
-  const paymentModeCol = pickColumn(columns, ["Payment_Mode"]);
-  const stateCol = pickColumn(columns, ["State"]);
-  const cityCol = pickColumn(columns, ["City"]);
-  let riskCol = pickColumn(columns, ["Risk_Level", "Risk Level", "Risk"]);
-
-  const cleaned = [];
-  for (const r of rows) {
-    const revenue = revenueCol ? toNumber(r[revenueCol]) : null;
-    const cost = costCol ? toNumber(r[costCol]) : null;
-    let profit = profitCol ? toNumber(r[profitCol]) : null;
-    if (profit === null && revenue !== null && cost !== null) {
-      profit = revenue - cost;
-    }
-
-    if (revenue === null || revenue <= 0 || profit === null) continue;
-
-    const margin = profit / revenue;
-    let risk = riskCol ? String(r[riskCol] || "").trim() : "";
-    if (!risk) {
-      risk = margin < 0.1 ? "High Risk" : margin < 0.3 ? "Medium Risk" : "Low Risk";
-    }
-    // Normalize common variants
-    const riskNorm = normalizeName(risk);
-    if (riskNorm.includes("high")) risk = "High Risk";
-    else if (riskNorm.includes("medium")) risk = "Medium Risk";
-    else if (riskNorm.includes("low")) risk = "Low Risk";
-
-    const dateObj = dateCol ? new Date(r[dateCol]) : null;
-    const dateValid = dateObj && !Number.isNaN(dateObj.getTime()) ? dateObj : null;
-
-    cleaned.push({
-      raw: r,
-      revenue,
-      cost,
-      profit,
-      margin,
-      risk,
-      dateObj: dateValid,
-      category: categoryCol ? String(r[categoryCol] || "Unknown") : "Unknown",
-      platform: platformCol ? String(r[platformCol] || "Unknown") : "Unknown",
-      businessModel: businessModelCol ? String(r[businessModelCol] || "Unknown") : "Unknown",
-      paymentMode: paymentModeCol ? String(r[paymentModeCol] || "Unknown") : "Unknown",
-      geo: stateCol ? String(r[stateCol] || "Unknown") : cityCol ? String(r[cityCol] || "Unknown") : "Unknown",
-      geoKey: stateCol ? "State" : cityCol ? "City" : "",
-    });
-  }
-
-  const riskLevels = ["Low Risk", "Medium Risk", "High Risk"];
-
-  // Trend (monthly)
-  const trendMap = new Map();
-  for (const r of cleaned) {
-    if (!r.dateObj) continue;
-    const key = monthKey(r.dateObj);
-    const cur = trendMap.get(key) || { Month: key, Revenue_INR: 0, Profit_INR: 0 };
-    cur.Revenue_INR += r.revenue;
-    cur.Profit_INR += r.profit;
-    trendMap.set(key, cur);
-  }
-  const trend = Array.from(trendMap.values()).sort((a, b) => a.Month.localeCompare(b.Month));
-
-  // Revenue by category
-  const catMap = new Map();
-  for (const r of cleaned) {
-    const cur = catMap.get(r.category) || { Category: r.category, Revenue_INR: 0, Profit_INR: 0 };
-    cur.Revenue_INR += r.revenue;
-    cur.Profit_INR += r.profit;
-    catMap.set(r.category, cur);
-  }
-  const category = Array.from(catMap.values()).sort((a, b) => b.Revenue_INR - a.Revenue_INR);
-
-  // Risk distribution
-  const riskDistMap = new Map(riskLevels.map((k) => [k, 0]));
-  for (const r of cleaned) {
-    riskDistMap.set(r.risk, (riskDistMap.get(r.risk) || 0) + 1);
-  }
-  const risk_distribution = Array.from(riskDistMap.entries()).map(([Risk_Level, Count]) => ({
-    Risk_Level,
-    Count,
-  }));
-
-  // Helper for stacked risk
-  function stackedRisk(keyFn, keyName) {
-    const m = new Map();
-    for (const r of cleaned) {
-      const key = keyFn(r);
-      const cur = m.get(key) || { [keyName]: key };
-      for (const lvl of riskLevels) cur[lvl] = cur[lvl] || 0;
-      cur[r.risk] = (cur[r.risk] || 0) + 1;
-      m.set(key, cur);
-    }
-    return Array.from(m.values()).sort((a, b) => {
-      const aTot = riskLevels.reduce((s, k) => s + (a[k] || 0), 0);
-      const bTot = riskLevels.reduce((s, k) => s + (b[k] || 0), 0);
-      return bTot - aTot;
-    });
-  }
-
-  const platform_risk = stackedRisk((r) => r.platform, "Platform");
-  const business_model_risk = stackedRisk((r) => r.businessModel, "Business_Model");
-  const payment_mode_risk = stackedRisk((r) => r.paymentMode, "Payment_Mode");
-
-  // Geo revenue
-  const geoMap = new Map();
-  for (const r of cleaned) {
-    const cur = geoMap.get(r.geo) || { [cleaned[0]?.geoKey || "Geo"]: r.geo, Revenue_INR: 0, Profit_INR: 0 };
-    cur.Revenue_INR += r.revenue;
-    cur.Profit_INR += r.profit;
-    geoMap.set(r.geo, cur);
-  }
-  const geo_key = cleaned[0]?.geoKey || "";
-  const geoLabelKey = geo_key || "Geo";
-  const geo_revenue = Array.from(geoMap.values())
-    .map((row) => {
-      // ensure correct axis key
-      if (geoLabelKey !== "Geo" && row.Geo) {
-        row[geoLabelKey] = row.Geo;
-        delete row.Geo;
-      }
-      return row;
-    })
-    .sort((a, b) => b.Revenue_INR - a.Revenue_INR)
-    .slice(0, 15);
-
-  // Scatter sample
-  const scatter = cleaned.slice(0, 1500).map((r) => ({ Revenue_INR: r.revenue, Cost_INR: r.cost ?? 0 }));
-
-  return {
-    trend,
-    category,
-    risk_distribution,
-    platform_risk,
-    business_model_risk,
-    payment_mode_risk,
-    geo_key: geoLabelKey === "Geo" ? "" : geoLabelKey,
-    geo_revenue,
-    scatter,
-    riskLevels,
-  };
-}
-
 function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const load = async () => {
+    let active = true;
+    const loadDashboard = async () => {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch(CSV_PATH);
-        if (!response.ok) {
-          throw new Error(
-            `Dataset not found at ${CSV_PATH} (HTTP ${response.status}). Make sure the file exists in frontend/public/data/`
-          );
+        const cache = await ensureDashboardCache();
+        if (!active) return;
+        if (!cache.dashboardData) {
+          throw new Error("Unable to load dashboard charts.");
         }
-        const csvText = await response.text();
-        const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
-        if (parsed.errors?.length) {
-          throw new Error(`CSV parse error: ${parsed.errors[0].message}`);
-        }
-        const built = buildDashboardFromRows(parsed.data);
-        if (!built) {
-          throw new Error("No valid rows found in dataset for dashboard charts.");
-        }
-        setDashboardData(built);
+        setDashboardData(cache.dashboardData);
       } catch (err) {
-        setError(err.message);
+        if (!active) return;
+        setError(err?.message || "Unable to load dashboard data.");
       } finally {
+        if (!active) return;
         setLoading(false);
       }
     };
-    load();
+    loadDashboard();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const pieRisk = useMemo(() => {

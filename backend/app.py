@@ -16,6 +16,8 @@ DEFAULT_DATASET_PATHS = [
     PROJECT_ROOT / "data_final.csv",
 ]
 DATASET_PATH = next((path for path in DEFAULT_DATASET_PATHS if path.exists()), DEFAULT_DATASET_PATHS[0])
+DASHBOARD_DATA_CACHE = None
+DASHBOARD_PAYLOAD_CACHE = None
 
 app = Flask(__name__)
 CORS(app)
@@ -108,6 +110,10 @@ def compute_prediction_confidence(revenue: float, cost: float) -> float:
 
 
 def load_dashboard_dataset() -> pd.DataFrame:
+    global DASHBOARD_DATA_CACHE
+    if DASHBOARD_DATA_CACHE is not None:
+        return DASHBOARD_DATA_CACHE
+
     if not DATASET_PATH.exists():
         raise FileNotFoundError(f"Dashboard dataset not found: {DATASET_PATH}")
 
@@ -136,6 +142,7 @@ def load_dashboard_dataset() -> pd.DataFrame:
             default="Low Risk",
         )
 
+    DASHBOARD_DATA_CACHE = data
     return data
 
 
@@ -235,6 +242,10 @@ def predict():
 
 @app.route("/dashboard-data", methods=["GET"])
 def dashboard_data():
+    global DASHBOARD_PAYLOAD_CACHE
+    if DASHBOARD_PAYLOAD_CACHE is not None:
+        return jsonify(DASHBOARD_PAYLOAD_CACHE)
+
     try:
         data = load_dashboard_dataset()
     except FileNotFoundError as error:
@@ -272,6 +283,7 @@ def dashboard_data():
     scatter = data.dropna(subset=["Revenue_INR", "Cost_INR"])[["Revenue_INR", "Cost_INR"]].copy()
     payload["scatter"] = scatter.sample(min(len(scatter), 1500), random_state=42).to_dict(orient="records")
 
+    DASHBOARD_PAYLOAD_CACHE = payload
     return jsonify(payload)
 
 
